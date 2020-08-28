@@ -1223,11 +1223,8 @@ class ActionHandler():
 action_handler = ActionHandler()
 
 
-@bp.route('/', methods=['GET', 'HEAD', 'POST'])
-@bp.route('/<path:filepath>', methods=['GET', 'HEAD', 'POST'])
-def handle_request(filepath=''):
-    """Handle an HTTP request (HEAD, GET, POST).
-    """
+@bp.before_request
+def handle_before_request():
     # replace SCRIPT_NAME with the custom if set
     if runtime['config']['app']['base']:
         request.environ['SCRIPT_NAME'] = runtime['config']['app']['base']
@@ -1239,6 +1236,12 @@ def handle_request(filepath=''):
         auth.set_basic('Authentication required.')
         return http_error(401, 'You are not authorized.', format=request.format, www_authenticate=auth)
 
+
+@bp.route('/', methods=['GET', 'HEAD', 'POST'])
+@bp.route('/<path:filepath>', methods=['GET', 'HEAD', 'POST'])
+def handle_request(filepath=''):
+    """Handle an HTTP request (HEAD, GET, POST).
+    """
     return action_handler._handle_action(request.action)
 
 
