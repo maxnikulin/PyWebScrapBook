@@ -1223,6 +1223,10 @@ class ActionHandler():
 action_handler = ActionHandler()
 
 
+def static_url(path):
+    return '{}/{}?a=static'.format(request.script_root, path)
+
+
 @bp.before_request
 def handle_before_request():
     # replace SCRIPT_NAME with the custom if set
@@ -1294,6 +1298,7 @@ def make_app(root=".", config=None):
             'get_breadcrumbs': util.get_breadcrumbs,
             'format_filesize': util.format_filesize,
             'quote_path': quote_path,
+            'static_url': static_url,
             })
 
     return app
