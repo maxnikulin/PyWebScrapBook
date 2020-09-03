@@ -23,6 +23,7 @@ from flask import current_app, session
 from werkzeug.local import LocalProxy
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.datastructures import WWWAuthenticate
+from werkzeug.exceptions import HTTPException
 from werkzeug.http import is_resource_modified
 from werkzeug.http import http_date
 from werkzeug.http import parse_options_header, dump_options_header
@@ -98,31 +99,40 @@ def http_response(body='', status=None, headers=None, format=None):
 
 
 def http_error(status=500, description=None, format=None, *args, **kwargs):
-    """Handle formatted error response.
+    """`abort` wrapper that strips `format` argument
+
+    TODO Update callers.
     """
-    # expect body to be a JSON-serializable object
-    if format == 'json':
-        mimetype = 'application/json'
+    return abort(status=status, description=description, *args, **kwargs)
 
-        try:
-            abort(status, description=description, *args, **kwargs)
-        except Exception as e:
-            headers = e.get_headers()
-            description = e.description
 
-        body = {
-            'error': {
-                'status': status,
-                'message': description,
-                },
-            }
+@bp.errorhandler(HTTPException)
+def http_error_handler(exc):
+    """Convert error to JSON if such format requested by client
 
-        body = json.dumps(body, ensure_ascii=False)
+    TODO: Consider `Accept` HTTP header.
+    """
+    if request.format != 'json':
+        return exc
 
-        return Response(body, status, headers=headers, mimetype=mimetype)
+    response = exc.get_response()
+    headers = response.headers
+    if headers['Content-Type'] == 'text/json':
+        return response
 
-    else:
-        return abort(status, description=description, *args, **kwargs)
+    description = exc.description
+    status = response.status_code
+    headers['Content-Type'] = 'text/json; charset=utf-8'
+
+    body = {
+        'error': {
+            'status': status,
+            'message': description,
+            },
+        }
+    body = json.dumps(body, ensure_ascii=False)
+
+    return body, status, headers
 
 
 def get_archive_path(filepath):
