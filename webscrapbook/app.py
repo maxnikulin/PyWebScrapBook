@@ -14,7 +14,6 @@ import functools
 from urllib.parse import urlsplit, urlunsplit, urljoin, quote, unquote, parse_qs
 from pathlib import Path
 from zlib import adler32
-from secrets import token_bytes
 
 # dependency
 import flask
@@ -35,6 +34,7 @@ import commonmark
 from . import *
 from . import __version__
 from . import Config
+from . import plugin2
 from . import util
 from ._compat.time import time_ns
 
@@ -1242,43 +1242,6 @@ def handle_before_request():
     if runtime['config']['app']['base']:
         request.environ['SCRIPT_NAME'] = runtime['config']['app']['base']
 
-    # handle authorization
-    try:
-        auth_config = runtime['config']['auth']
-    except KeyError:
-        # auth not required
-        return
-
-    # if request authorization is provided, use it
-    # otherwise try to read from session
-    auth = request.authorization
-    if auth:
-        id, perm = get_permission(auth, auth_config)
-    else:
-        sid = session.get('auth_id')
-        try:
-            assert session.get('auth_pw') == runtime['config']['auth'][sid].get('pw', '')
-            perm = runtime['config']['auth'][sid].get('permission', 'all')
-        except (KeyError, AssertionError):
-            id, perm = get_permission(auth, auth_config)
-
-            # clear if session becomes invalid and no new log in
-            if sid and not id:
-                session.clear()
-        else:
-            id = sid
-
-    # store auth id in session
-    if id:
-        session['auth_id'] = id
-        session['auth_pw'] = runtime['config']['auth'][id].get('pw', '')
-        session.permanent = True
-
-    if not verify_authorization(perm, request.action):
-        auth = WWWAuthenticate()
-        auth.set_basic('Authentication required.')
-        return http_error(401, 'You are not authorized.', format=request.format, www_authenticate=auth)
-
 
 @bp.route('/', methods=['GET', 'HEAD', 'POST'])
 @bp.route('/<path:filepath>', methods=['GET', 'HEAD', 'POST'])
@@ -1286,6 +1249,25 @@ def handle_request(filepath=''):
     """Handle an HTTP request (HEAD, GET, POST).
     """
     return action_handler._handle_action(request.action)
+
+
+def make_old_auth_app(instance_path, werkzeug_secret_key_plugin):
+    app = flask.Flask(__name__, instance_path=instance_path)
+    authentication_db = plugin2.DictPasswordAuthenticationDb(
+        lambda: runtime['config']['auth'])
+    session_authentication = plugin2.ClientSessionAuthentication(
+        authentication_db=authentication_db,
+        werkzeug_secret_key_plugin=werkzeug_secret_key_plugin)
+    basic_http_authentication = plugin2.BasicHttpAuthentication(authentication_db=authentication_db)
+    authorization = plugin2.Authorization(
+        authentication_plugin_list=[
+            session_authentication,
+            basic_http_authentication,
+            plugin2.InconsistentAuthenticationIsForbidden(),
+        ],
+        check_authorization=plugin2.simple_authorization_check)
+    bp.before_request(authorization.before_request)
+    return app
 
 
 def make_app(root=".", config=None):
@@ -1314,31 +1296,25 @@ def make_app(root=".", config=None):
     # init token_handler
     _runtime['token_handler'] = util.TokenHandler(_runtime['tokens'])
 
-    # load or generate a session key if auth is defined
-    try:
-        auth_sections = _runtime['config']['auth']
-    except KeyError:
-        session_key = None
-        pass
+    instance_path=_runtime['root']
+    plugins = []
+    has_auth = 'auth' in _runtime['config']
+    if has_auth:
+        werkzeug_secret_key_plugin = plugin2.WerkzeugSecretKeyPlugin()
+        werkzeug_secret_key_plugin.workspace_init(_runtime['sessions'])
+        plugins.append(werkzeug_secret_key_plugin)
+        app = make_old_auth_app(instance_path, werkzeug_secret_key_plugin)
     else:
-        os.makedirs(os.path.dirname(_runtime['sessions']), exist_ok=True)
-        try:
-            with open(_runtime['sessions'], 'rb') as f:
-                session_key = f.read()
-            assert len(session_key) >= 32
-        except (FileNotFoundError, AssertionError):
-            session_key = token_bytes(128)
-            with open(_runtime['sessions'], 'wb') as f:
-                f.write(session_key)
+        # Read-write anonymous access
+        # TODO issue a warnig that is unsafe
+        app = flask.Flask(__name__, instance_path=_runtime['root'])
 
-    # main app instance
-    app = flask.Flask(__name__, instance_path=_runtime['root'])
     app.register_blueprint(bp)
     app.request_class = Request
     app.config['WEBSCRAPBOOK_RUNTIME'] = _runtime
-    app.config['SECRET_KEY'] = session_key
-    app.config['SESSION_COOKIE_NAME'] = 'wsbsession'
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    if has_auth:
+        for plugin in plugins:
+            plugin.app_config(app.config)
 
     xheaders = {
             'x_for': config['app']['allowed_x_for'],
