@@ -6,6 +6,12 @@ import os
 import argparse
 from getpass import getpass
 import traceback
+import tempfile
+import zipfile
+import mimetypes
+import webbrowser
+import shutil
+from urllib.request import pathname2url
 
 # this package
 from . import __package_name__, __version__
@@ -163,13 +169,6 @@ def view_archive_files(files):
     Set default application of MAFF/HTZ archive files to this command to open
     them in the browser directly.
     """
-    import tempfile
-    import zipfile
-    import mimetypes
-    import webbrowser
-    import shutil
-    from urllib.request import pathname2url
-
     cache_prefix = config['browser']['cache_prefix']
     cache_expire = config['browser']['cache_expire'] * 10 ** 9
     use_jar = config['browser']['use_jar']
