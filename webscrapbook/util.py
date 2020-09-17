@@ -471,9 +471,10 @@ def zip_hasdir(zip, subpath):
 
 MetaRefreshInfo = namedtuple('MetaRefreshInfo', ['time', 'target'])
 
+ITER_META_REFRESH_REGEX_PARAMETERS = re.compile(r'^\s*url\s*=\s*(.*?)\s*$', re.I)
 
-def parse_meta_refresh(file):
-    """Retrieve meta refresh target from a file.
+def iter_meta_refresh(file):
+    """Iterate through meta refreshes from a file.
 
     Args:
         file: str, path-like, or file-like object
@@ -496,11 +497,9 @@ def parse_meta_refresh(file):
                     except ValueError:
                         time = 0
 
-                    m = re.match(r'^\s*url\s*=\s*(.*?)\s*$', content, flags=re.I)
+                    m = ITER_META_REFRESH_REGEX_PARAMETERS.search(content)
                     target = m.group(1) if m else None
-
-                    if time == 0 and target is not None:
-                        return MetaRefreshInfo(time=time, target=target)
+                    yield MetaRefreshInfo(time=time, target=target)
 
                 # clean up to save memory
                 elem.clear()
@@ -514,6 +513,16 @@ def parse_meta_refresh(file):
             if fh != file:
                 fh.close()
 
+
+def parse_meta_refresh(file):
+    """Retrieve meta refresh target from a file.
+
+    Args:
+        file: str, path-like, or file-like object
+    """
+    for info in iter_meta_refresh(file):
+        if info.time == 0 and info.target is not None:
+            return info
     return MetaRefreshInfo(time=None, target=None)
 
 

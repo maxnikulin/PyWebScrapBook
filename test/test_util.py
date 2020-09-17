@@ -633,17 +633,33 @@ class TestUtils(unittest.TestCase):
             except FileNotFoundError:
                 pass
 
+    def test_iter_meta_refresh(self):
+        root = os.path.join(root_dir, 'test_util', 'parse_meta_refresh')
+        self.assertEqual(
+            list(util.iter_meta_refresh(os.path.join(root, 'refresh1.html'))),
+            [(15, 'target.html'), (0, None), (0, 'target.html'), (0, 'target2.html')],
+            )
+        self.assertEqual(
+            list(util.iter_meta_refresh(os.path.join(root, 'refresh2.html'))),
+            [(15, 'target.html'), (0, 'target.html'), (0, 'target2.html')],
+            )
+        self.assertEqual(
+            list(util.iter_meta_refresh(os.path.join(root, 'nonexist.html'))),
+            [],
+            )
+
     def test_parse_meta_refresh(self):
+        root = os.path.join(root_dir, 'test_util', 'parse_meta_refresh')
         self.assertEqual(
-            util.parse_meta_refresh(os.path.join(root_dir, 'test_util', 'parse_meta_refresh', 'refresh1.html')),
+            util.parse_meta_refresh(os.path.join(root, 'refresh1.html')),
             (0, 'target.html')
             )
         self.assertEqual(
-            util.parse_meta_refresh(os.path.join(root_dir, 'test_util', 'parse_meta_refresh', 'refresh2.html')),
+            util.parse_meta_refresh(os.path.join(root, 'refresh2.html')),
             (0, 'target.html')
             )
         self.assertEqual(
-            util.parse_meta_refresh(os.path.join(root_dir, 'test_util', 'parse_meta_refresh', 'nonexist.html')),
+            util.parse_meta_refresh(os.path.join(root, 'nonexist.html')),
             (None, None)
             )
 
