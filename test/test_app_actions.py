@@ -50,6 +50,15 @@ def tearDownModule():
 def token(c):
     return c.post('/', data={'a': 'token'}).data.decode('UTF-8')
 
+
+def timestamp_from_zip_time_tuple(zip_time):
+    """Make timestamp for zip entries for time zone where test is running
+
+    It is namely local time since Zip is unaware of time zones.
+    """
+    return int(time.mktime(zip_time + (0, 0, -1)))
+
+
 class TestActions(unittest.TestCase):
     def rmtree_error_handler(self, func, path, ex):
         """Error handler for shutil.rmtree.
@@ -753,14 +762,22 @@ class TestInfo(unittest.TestCase):
     def test_file_zip(self):
         zip_filename = os.path.join(server_root, 'archive.zip')
         try:
+            explicit_dir_time_tuple = (1987, 1, 1, 0, 0, 0)
+            explicit_dir_ts = timestamp_from_zip_time_tuple(explicit_dir_time_tuple)
+            explicit_index_time_tuple = (1987, 1, 2, 0, 0, 0)
+            explicit_index_ts = timestamp_from_zip_time_tuple(explicit_index_time_tuple)
+            subentry_index_time_tuple = (1987, 1, 5, 0, 0, 0)
+            subentry_index_ts = timestamp_from_zip_time_tuple(subentry_index_time_tuple)
+
             with zipfile.ZipFile(zip_filename, 'w') as zh:
-                zh.writestr(zipfile.ZipInfo('explicit_dir/', (1987, 1, 1, 0, 0, 0)), '')
-                zh.writestr(zipfile.ZipInfo('explicit_dir/index.html', (1987, 1, 2, 0, 0, 0)), 'Hello World! 你好')
+
+                zh.writestr(zipfile.ZipInfo('explicit_dir/', explicit_dir_time_tuple), '')
+                zh.writestr(zipfile.ZipInfo('explicit_dir/index.html', explicit_index_time_tuple), 'Hello World! 你好')
                 zh.writestr(zipfile.ZipInfo('implicit_dir/index.html', (1987, 1, 3, 0, 0, 0)), 'Hello World! 你好嗎')
 
                 buf1 = io.BytesIO()
                 with zipfile.ZipFile(buf1, 'w') as zh1:
-                    zh1.writestr(zipfile.ZipInfo('index.html', (1987, 1, 5, 0, 0, 0)), 'ABC')
+                    zh1.writestr(zipfile.ZipInfo('index.html', subentry_index_time_tuple), 'ABC')
                 zh.writestr(zipfile.ZipInfo('entry1.zip', (1987, 1, 4, 0, 0, 0)), buf1.getvalue())
 
             with app.test_client() as c:
@@ -774,7 +791,7 @@ class TestInfo(unittest.TestCase):
                         'name': 'explicit_dir',
                         'type': 'dir',
                         'size': None,
-                        'last_modified': 536428800,
+                        'last_modified': explicit_dir_ts,
                         'mime': None,
                         },
                     })
@@ -789,7 +806,7 @@ class TestInfo(unittest.TestCase):
                         'name': 'explicit_dir',
                         'type': 'dir',
                         'size': None,
-                        'last_modified': 536428800,
+                        'last_modified': explicit_dir_ts,
                         'mime': None,
                         },
                     })
@@ -834,7 +851,7 @@ class TestInfo(unittest.TestCase):
                         'name': 'index.html',
                         'type': 'file',
                         'size': 19,
-                        'last_modified': 536515200,
+                        'last_modified': explicit_index_ts,
                         'mime': 'text/html',
                         },
                     })
@@ -864,7 +881,7 @@ class TestInfo(unittest.TestCase):
                         'name': 'index.html',
                         'type': 'file',
                         'size': 3,
-                        'last_modified': 536774400,
+                        'last_modified': subentry_index_ts,
                         'mime': 'text/html',
                         },
                     })
@@ -1030,16 +1047,30 @@ class TestList(unittest.TestCase):
     def test_zip(self):
         zip_filename = os.path.join(server_root, 'archive.zip')
         try:
+            explicit_index_time_tuple = (1987, 1, 2, 0, 0, 0)
+            explicit_index_ts = timestamp_from_zip_time_tuple(explicit_index_time_tuple)
+            explicit_subdir_time_tuple = (1987, 1, 2, 1, 0, 0)
+            explicit_subdir_ts = timestamp_from_zip_time_tuple(explicit_subdir_time_tuple)
+            implicit_index_time_tuple = (1987, 1, 3, 0, 0, 0)
+            implicit_index_ts = timestamp_from_zip_time_tuple(implicit_index_time_tuple)
+            implicit_subdir_index_time_tuple = (1987, 1, 3, 1, 0, 0)
+            implicit_subdir_index_ts = timestamp_from_zip_time_tuple(implicit_subdir_index_time_tuple)
+            subentry_index_time_tuple = (1987, 1, 5, 0, 0, 0)
+            subentry_index_ts = timestamp_from_zip_time_tuple(subentry_index_time_tuple)
+
             with zipfile.ZipFile(zip_filename, 'w') as zh:
                 zh.writestr(zipfile.ZipInfo('explicit_dir/', (1987, 1, 1, 0, 0, 0)), '')
-                zh.writestr(zipfile.ZipInfo('explicit_dir/index.html', (1987, 1, 2, 0, 0, 0)), 'Hello World! 你好')
-                zh.writestr(zipfile.ZipInfo('explicit_dir/subdir/', (1987, 1, 2, 1, 0, 0)), '')
-                zh.writestr(zipfile.ZipInfo('implicit_dir/index.html', (1987, 1, 3, 0, 0, 0)), 'Hello World! 你好嗎')
-                zh.writestr(zipfile.ZipInfo('implicit_dir/subdir/index.html', (1987, 1, 3, 1, 0, 0)), 'Hello World!')
+                zh.writestr(zipfile.ZipInfo(
+                    'explicit_dir/index.html', explicit_index_time_tuple), 'Hello World! 你好')
+                zh.writestr(zipfile.ZipInfo('explicit_dir/subdir/', explicit_subdir_time_tuple), '')
+                zh.writestr(zipfile.ZipInfo(
+                    'implicit_dir/index.html', implicit_index_time_tuple), 'Hello World! 你好嗎')
+                zh.writestr(zipfile.ZipInfo(
+                    'implicit_dir/subdir/index.html', implicit_subdir_index_time_tuple), 'Hello World!')
 
                 buf1 = io.BytesIO()
                 with zipfile.ZipFile(buf1, 'w') as zh1:
-                    zh1.writestr(zipfile.ZipInfo('index.html', (1987, 1, 5, 0, 0, 0)), 'ABC')
+                    zh1.writestr(zipfile.ZipInfo('index.html', subentry_index_time_tuple), 'ABC')
                 zh.writestr(zipfile.ZipInfo('entry1.zip', (1987, 1, 4, 0, 0, 0)), buf1.getvalue())
 
             with app.test_client() as c:
@@ -1057,13 +1088,13 @@ class TestList(unittest.TestCase):
                         'name': 'index.html',
                         'type': 'file',
                         'size': 19,
-                        'last_modified': 536515200,
+                        'last_modified': explicit_index_ts,
                         }),
                     frozendict({
                         'name': 'subdir',
                         'type': 'dir',
                         'size': None,
-                        'last_modified': 536518800,
+                        'last_modified': explicit_subdir_ts,
                         }),
                     })
 
@@ -1081,13 +1112,13 @@ class TestList(unittest.TestCase):
                         'name': 'index.html',
                         'type': 'file',
                         'size': 19,
-                        'last_modified': 536515200,
+                        'last_modified': explicit_index_ts,
                         }),
                     frozendict({
                         'name': 'subdir',
                         'type': 'dir',
                         'size': None,
-                        'last_modified': 536518800,
+                        'last_modified': explicit_subdir_ts,
                         }),
                     })
 
@@ -1105,7 +1136,7 @@ class TestList(unittest.TestCase):
                         'name': 'index.html',
                         'type': 'file',
                         'size': 22,
-                        'last_modified': 536601600,
+                        'last_modified': implicit_index_ts,
                         }),
                     frozendict({
                         'name': 'subdir',
@@ -1129,7 +1160,7 @@ class TestList(unittest.TestCase):
                         'name': 'index.html',
                         'type': 'file',
                         'size': 22,
-                        'last_modified': 536601600,
+                        'last_modified': implicit_index_ts,
                         }),
                     frozendict({
                         'name': 'subdir',
@@ -1153,7 +1184,7 @@ class TestList(unittest.TestCase):
                         'name': 'index.html',
                         'type': 'file',
                         'size': 22,
-                        'last_modified': 536601600,
+                        'last_modified': implicit_index_ts,
                         }),
                     frozendict({
                         'name': 'subdir',
@@ -1165,7 +1196,7 @@ class TestList(unittest.TestCase):
                         'name': 'subdir/index.html',
                         'type': 'file',
                         'size': 12,
-                        'last_modified': 536605200,
+                        'last_modified': implicit_subdir_index_ts,
                         }),
                     })
 
@@ -1198,7 +1229,7 @@ class TestList(unittest.TestCase):
                         'name': 'index.html',
                         'type': 'file',
                         'size': 3,
-                        'last_modified': 536774400,
+                        'last_modified': subentry_index_ts,
                         }),
                     })
         finally:
