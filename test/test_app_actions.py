@@ -179,7 +179,10 @@ class TestActions(unittest.TestCase):
 
             for i in stat0:
                 with self.subTest(i=i):
-                    if i in {'mtime', 'atime'}:
+                    if i == 'atime':
+                        # Access time could be easily disturbed
+                        continue
+                    if i == 'mtime':
                         self.assertAlmostEqual(stat0[i], stati[i], delta=2)
                     else:
                         self.assertEqual(stat0[i], stati[i])
