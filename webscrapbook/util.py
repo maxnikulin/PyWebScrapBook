@@ -12,6 +12,11 @@ import math
 import re
 import hashlib
 import time
+import mimetypes
+import binascii
+import codecs
+from base64 import b64decode
+from urllib.parse import quote, unquote, unquote_to_bytes
 from ipaddress import IPv6Address, AddressValueError
 from secrets import token_urlsafe
 from lxml import etree
@@ -98,6 +103,37 @@ def fix_codec(name):
         return CODECS_MAPPING[name.lower()]
     except KeyError:
         return name
+
+
+# starting of BOM32 is equal to BOM16, so check the former first
+BOM_DETECTORS = [
+    ('UTF-8-SIG', codecs.BOM_UTF8),
+    ('UTF-32-LE', codecs.BOM_UTF32_LE),
+    ('UTF-32-BE', codecs.BOM_UTF32_BE),
+    ('UTF-16-LE', codecs.BOM_UTF16_LE),
+    ('UTF-16-BE', codecs.BOM_UTF16_BE),
+    ]
+
+def sniff_bom(fh):
+    """Sniff a possibly existing BOM
+
+    Args:
+        fh: an opened file handler, must be seekable.
+
+    Return:
+        str: corresponding codec name for a found BOM if a BOM is found (and
+            sets pointer at the position after the BOM), or None otherwise.
+    """
+    # will read less if the file is smaller
+    raw = fh.read(4)
+
+    for enc, bom in BOM_DETECTORS:
+        if raw.startswith(bom):
+            fh.seek(len(bom))
+            return enc
+
+    fh.seek(0)
+    return None
 
 
 #########################################################################
@@ -538,6 +574,55 @@ def parse_content_type(string):
                 parameters[field] = value;
 
     return ContentType(type, parameters)
+
+
+DataUri = namedtuple('DataUri', ['bytes', 'mime', 'parameters'])
+
+PARSE_DATAURI_REGEX_FIELDS = re.compile(r'^data:([^,]*?)(;base64)?,([^#]*)', re.I)
+PARSE_DATAURI_REGEX_KEY_VALUE = re.compile(r'^(.*?)=(.*?)$')
+
+class DataUriMalformedError(Exception):
+    pass
+
+def parse_datauri(datauri):
+    """Parse a Data URI
+
+    Args:
+        datauri: the data URI string
+
+    Returns:
+        DataUri: a tuple containing information
+
+    Raises:
+        DataUriMalformedError
+    """
+    match_fields = PARSE_DATAURI_REGEX_FIELDS.search(datauri)
+    if not match_fields:
+        raise DataUriMalformedError('Malformed data URI')
+
+    mediatype = match_fields.group(1)
+    base64 = bool(match_fields.group(2))
+    data = match_fields.group(3)
+
+    parts = mediatype.split(';')
+    mime = parts.pop(0)
+    parameters = {}
+    for part in parts:
+        match_key_value = PARSE_DATAURI_REGEX_KEY_VALUE.search(part)
+        if match_key_value:
+            parameters[match_key_value.group(1).lower()] = match_key_value.group(2)
+
+    if base64:
+        try:
+            bytes_ = b64decode(data)
+        except binascii.Error as exc:
+            raise DataUriMalformedError(f'Malformed base64 sequence: {exc}')
+    else:
+        # decode precent-encoding to corresponding byte
+        # non-ASCII chars are encoded as UTF-8 bytes
+        bytes_ = unquote_to_bytes(data)
+
+    return DataUri(bytes_, mime, parameters)
 
 
 #########################################################################

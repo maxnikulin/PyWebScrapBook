@@ -66,6 +66,35 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(util.fix_codec('BIG5'), 'cp950')
         self.assertEqual(util.fix_codec('UTF-8'), 'UTF-8')
 
+    def test_sniff_bom(self):
+        fh = io.BytesIO(b'\xef\xbb\xbf' + '中文'.encode('UTF-8'))
+        self.assertEqual(util.sniff_bom(fh), 'UTF-8-SIG')
+        self.assertEqual(fh.tell(), 3)
+
+        fh = io.BytesIO(b'\xff\xfe' + '中文'.encode('UTF-16-LE'))
+        self.assertEqual(util.sniff_bom(fh), 'UTF-16-LE')
+        self.assertEqual(fh.tell(), 2)
+
+        fh = io.BytesIO(b'\xfe\xff' + '中文'.encode('UTF-16-BE'))
+        self.assertEqual(util.sniff_bom(fh), 'UTF-16-BE')
+        self.assertEqual(fh.tell(), 2)
+
+        fh = io.BytesIO(b'\xff\xfe\x00\x00' + '中文'.encode('UTF-32-LE'))
+        self.assertEqual(util.sniff_bom(fh), 'UTF-32-LE')
+        self.assertEqual(fh.tell(), 4)
+
+        fh = io.BytesIO(b'\x00\x00\xfe\xff' + '中文'.encode('UTF-32-BE'))
+        self.assertEqual(util.sniff_bom(fh), 'UTF-32-BE')
+        self.assertEqual(fh.tell(), 4)
+
+        fh = io.BytesIO('中文'.encode('UTF-8'))
+        self.assertIsNone(util.sniff_bom(fh))
+        self.assertEqual(fh.tell(), 0)
+
+        fh = io.BytesIO('中文'.encode('Big5'))
+        self.assertIsNone(util.sniff_bom(fh))
+        self.assertEqual(fh.tell(), 0)
+
     def test_is_nullhost(self):
         self.assertTrue(util.is_nullhost('0.0.0.0'))
         self.assertFalse(util.is_nullhost('127.0.0.1'))
@@ -659,6 +688,56 @@ class TestUtils(unittest.TestCase):
             util.parse_content_type(''),
             (None, {}),
             )
+
+    def test_parse_datauri(self):
+        self.assertEqual(
+            util.parse_datauri('data:text/plain;base64,QUJDMTIz5Lit5paH'),
+            (b'ABC123\xe4\xb8\xad\xe6\x96\x87', 'text/plain', {})
+            )
+        self.assertEqual(
+            util.parse_datauri('data:text/plain,ABC123%E4%B8%AD%E6%96%87'),
+            (b'ABC123\xe4\xb8\xad\xe6\x96\x87', 'text/plain', {})
+            )
+        self.assertEqual(
+            util.parse_datauri('data:text/plain;filename=ABC%E6%AA%94.md;base64,QUJDMTIz5Lit5paH'),
+            (b'ABC123\xe4\xb8\xad\xe6\x96\x87', 'text/plain', {'filename': 'ABC%E6%AA%94.md'})
+            )
+        self.assertEqual(
+            util.parse_datauri('data:text/plain;filename=ABC%E6%AA%94.md,ABC123%E4%B8%AD%E6%96%87'),
+            (b'ABC123\xe4\xb8\xad\xe6\x96\x87', 'text/plain', {'filename': 'ABC%E6%AA%94.md'})
+            )
+        self.assertEqual(
+            util.parse_datauri('data:text/plain;charset=big5;filename=ABC%E6%AA%94.md;base64,QUJDMTIz5Lit5paH'),
+            (b'ABC123\xe4\xb8\xad\xe6\x96\x87', 'text/plain', {'filename': 'ABC%E6%AA%94.md', 'charset': 'big5'})
+            )
+        self.assertEqual(
+            util.parse_datauri('data:text/plain;charset=big5;filename=ABC%E6%AA%94.md,ABC123%E4%B8%AD%E6%96%87'),
+            (b'ABC123\xe4\xb8\xad\xe6\x96\x87', 'text/plain', {'filename': 'ABC%E6%AA%94.md', 'charset': 'big5'})
+            )
+
+        # missing MIME => empty MIME
+        self.assertEqual(
+            util.parse_datauri('data:,ABC'),
+            (b'ABC', '', {})
+            )
+
+        # non-ASCII data => treat as UTF-8
+        self.assertEqual(
+            util.parse_datauri('data:text/plain,ABC中文'),
+            (b'ABC\xe4\xb8\xad\xe6\x96\x87', 'text/plain', {})
+            )
+
+        # incomplete => raise DataUriMalformedError
+        with self.assertRaises(util.DataUriMalformedError):
+            util.parse_datauri('data:')
+        with self.assertRaises(util.DataUriMalformedError):
+            util.parse_datauri('data:text/html')
+        with self.assertRaises(util.DataUriMalformedError):
+            util.parse_datauri('data:text/html;base64')
+
+        # malformed base64 => raise DataUriMalformedError
+        with self.assertRaises(util.DataUriMalformedError):
+            util.parse_datauri('data:text/plain;base64,ABC')
 
     def test_get_charset(self):
         root = os.path.join(root_dir, 'test_util', 'get_charset')

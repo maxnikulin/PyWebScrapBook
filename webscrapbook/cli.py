@@ -18,6 +18,7 @@ from . import __package_name__, __version__
 from . import *
 from . import server
 from . import util
+from .scrapbook import cache as wsb_cache
 from ._compat.time import time_ns
 
 
@@ -130,6 +131,14 @@ def cmd_config(args):
     else:
         config.load(args['root'])
         config.dump(sys.stdout)
+
+
+def cmd_cache(args):
+    """Generate fulltext cache."""
+    kwargs = args.copy()
+    kwargs['books'] = kwargs.pop('book')
+    for info in wsb_cache.generate(**kwargs):
+        print(f'{info.type.upper()}:', info.msg)
 
 
 def cmd_encrypt(args):
@@ -280,6 +289,21 @@ Add -h (--help) after a sub-command for help message.
         help="""generate more assistant files. (with --book)""")
     parser_config.add_argument('-e', '--edit', default=False, action='store_true',
         help="""edit the config file. (with --book or --user)""")
+
+    # subcommand: cache
+    parser_cache = subparsers.add_parser('cache',
+        help=cmd_cache.__doc__, description=cmd_cache.__doc__)
+    parser_cache.set_defaults(func=cmd_cache)
+    parser_cache.add_argument('book', nargs='*', action='store',
+        help="""the book ID(s) to generate cache. (default: all books)""")
+    parser_cache.add_argument('--fulltext', default=True, action='store_true',
+        help="""generate fulltext cache. (default)""")
+    parser_cache.add_argument('--no-fulltext', dest='fulltext', action='store_false',
+        help="""do not generate fulltext cache.""")
+    parser_cache.add_argument('--inclusive-frames', default=True, action='store_true',
+        help="""cache frame content as part of the main page. (default)""")
+    parser_cache.add_argument('--no-inclusive-frames', dest='inclusive_frames', action='store_false',
+        help="""do not cache frame content as part of the main page.""")
 
     # subcommand: encrypt
     parser_encrypt = subparsers.add_parser('encrypt', aliases=['e'],

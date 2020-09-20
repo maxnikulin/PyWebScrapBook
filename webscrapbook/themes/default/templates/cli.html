@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ title }}</title>
+<style>
+pre {
+  white-space: pre-wrap;
+}
+
+.warn {
+  font-weight: bold;
+  color: yellow;
+}
+
+.error {
+  font-weight: bold;
+  color: red;
+}
+</style>
+</head>
+<body>
+<pre>
+{%- for message in messages -%}
+  {{ message }}
+{%- endfor -%}
+</pre>
+</body>
+</html>
