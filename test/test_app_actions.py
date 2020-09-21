@@ -1417,25 +1417,25 @@ class TestList(TestActions):
                 with get(
                         'explicit dir (no slash)',
                         '/archive.zip!/explicit_dir', query_string={'a': 'list', 'f': 'sse'}, buffered=True) as r:
-                    self.assertEqual(r.status_code, 200)
-                    self.assertEqual(r.headers['Content-Type'], 'text/event-stream; charset=utf-8')
-                    self.assertEqual(r.headers['Cache-Control'], 'no-cache')
-                    self.assertIsNotNone(r.headers['Last-Modified'])
-                    self.assertIsNotNone(r.headers['ETag'])
+                    with check(): self.assertEqual(r.status_code, 200)
+                    with check(): self.assertEqual(r.headers['Content-Type'], 'text/event-stream; charset=utf-8')
+                    with check(): self.assertEqual(r.headers['Cache-Control'], 'no-cache')
+                    with check(): self.assertIsNotNone(r.headers['Last-Modified'])
+                    with check(): self.assertIsNotNone(r.headers['ETag'])
                     sse = self.parse_sse_objects(r.data.decode('UTF-8'))
-                    self.assertIn(('message', {
+                    with check(): self.assertIn(('message', {
                         'name': 'index.html',
                         'type': 'file',
                         'size': 19,
                         'last_modified': zip_tuple_timestamp((1987, 1, 3, 0, 0, 0)),
                         }), sse)
-                    self.assertIn(('message', {
+                    with check(): self.assertIn(('message', {
                         'name': 'subdir',
                         'type': 'dir',
                         'size': None,
                         'last_modified': zip_tuple_timestamp((1987, 1, 2, 1, 0, 0)),
                         }), sse)
-                    self.assertIn(('complete', None), sse)
+                    with check(): self.assertIn(('complete', None), sse)
 
                 with get(
                         'explicit dir',
