@@ -1410,6 +1410,9 @@ class TestList(TestActions):
                     def __eq__(self, other):
                         if isinstance(other, (int, float)):
                             return self.timestamp == other
+                        elif isinstance(other, zip_tuple_timestamp):
+                            return self.timestamp == other.timestamp
+                        return NotImplemented
 
                 with get(
                         'explicit dir (no slash)',
