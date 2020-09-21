@@ -1384,108 +1384,121 @@ class TestList(TestActions):
                 zh.writestr(zipfile.ZipInfo('implicit_dir/subdir/index.html', (1987, 1, 3, 1, 0, 0)), 'Hello World!')
 
             with app.test_client() as c:
-                # explicit dir (no slash)
-                r = c.get('/archive.zip!/explicit_dir', query_string={'a': 'list', 'f': 'sse'}, buffered=True)
-                self.assertEqual(r.status_code, 200)
-                self.assertEqual(r.headers['Content-Type'], 'text/event-stream; charset=utf-8')
-                self.assertEqual(r.headers['Cache-Control'], 'no-cache')
-                self.assertIsNotNone(r.headers['Last-Modified'])
-                self.assertIsNotNone(r.headers['ETag'])
-                sse = self.parse_sse_objects(r.data.decode('UTF-8'))
-                self.assertTrue(('message', {
-                    'name': 'index.html',
-                    'type': 'file',
-                    'size': 19,
-                    'last_modified': zip_tuple_timestamp((1987, 1, 2, 0, 0, 0)),
-                    }) in sse)
-                self.assertTrue(('message', {
-                    'name': 'subdir',
-                    'type': 'dir',
-                    'size': None,
-                    'last_modified': zip_tuple_timestamp((1987, 1, 2, 1, 0, 0)),
-                    }) in sse)
-                self.assertTrue(('complete', None) in sse)
+                from contextlib import contextmanager
+                check = self.subTest
+                @contextmanager
+                def get(message, path, **kwargs):
+                    with check(message, path=path, **kwargs):
+                        yield c.get(path, **kwargs)
 
-                # explicit dir
-                r = c.get('/archive.zip!/explicit_dir/', query_string={'a': 'list', 'f': 'sse'}, buffered=True)
-                self.assertEqual(r.status_code, 200)
-                self.assertEqual(r.headers['Content-Type'], 'text/event-stream; charset=utf-8')
-                self.assertEqual(r.headers['Cache-Control'], 'no-cache')
-                self.assertIsNotNone(r.headers['Last-Modified'])
-                self.assertIsNotNone(r.headers['ETag'])
-                sse = self.parse_sse_objects(r.data.decode('UTF-8'))
-                self.assertTrue(('message', {
-                    'name': 'index.html',
-                    'type': 'file',
-                    'size': 19,
-                    'last_modified': zip_tuple_timestamp((1987, 1, 2, 0, 0, 0)),
-                    }) in sse)
-                self.assertTrue(('message', {
-                    'name': 'subdir',
-                    'type': 'dir',
-                    'size': None,
-                    'last_modified': zip_tuple_timestamp((1987, 1, 2, 1, 0, 0)),
-                    }) in sse)
-                self.assertTrue(('complete', None) in sse)
+                with get(
+                        'explicit dir (no slash)',
+                        '/archive.zip!/explicit_dir', query_string={'a': 'list', 'f': 'sse'}, buffered=True) as r:
+                    self.assertEqual(r.status_code, 200)
+                    self.assertEqual(r.headers['Content-Type'], 'text/event-stream; charset=utf-8')
+                    self.assertEqual(r.headers['Cache-Control'], 'no-cache')
+                    self.assertIsNotNone(r.headers['Last-Modified'])
+                    self.assertIsNotNone(r.headers['ETag'])
+                    sse = self.parse_sse_objects(r.data.decode('UTF-8'))
+                    self.assertTrue(('message', {
+                        'name': 'index.html',
+                        'type': 'file',
+                        'size': 19,
+                        'last_modified': zip_tuple_timestamp((1987, 1, 2, 0, 0, 0)),
+                        }) in sse)
+                    self.assertTrue(('message', {
+                        'name': 'subdir',
+                        'type': 'dir',
+                        'size': None,
+                        'last_modified': zip_tuple_timestamp((1987, 1, 2, 1, 0, 0)),
+                        }) in sse)
+                    self.assertTrue(('complete', None) in sse)
 
-                # implicit dir (no slash)
-                r = c.get('/archive.zip!/implicit_dir', query_string={'a': 'list', 'f': 'sse'}, buffered=True)
-                self.assertEqual(r.status_code, 200)
-                self.assertEqual(r.headers['Content-Type'], 'text/event-stream; charset=utf-8')
-                self.assertEqual(r.headers['Cache-Control'], 'no-cache')
-                self.assertIsNotNone(r.headers['Last-Modified'])
-                self.assertIsNotNone(r.headers['ETag'])
-                sse = self.parse_sse_objects(r.data.decode('UTF-8'))
-                self.assertTrue(('message', {
-                    'name': 'index.html',
-                    'type': 'file',
-                    'size': 22,
-                    'last_modified': zip_tuple_timestamp((1987, 1, 3, 0, 0, 0)),
-                    }) in sse)
-                self.assertTrue(('message', {
-                    'name': 'subdir',
-                    'type': 'dir',
-                    'size': None,
-                    'last_modified': None,
-                    }) in sse)
-                self.assertTrue(('complete', None) in sse)
+                with get(
+                        'explicit dir',
+                        '/archive.zip!/explicit_dir/', query_string={'a': 'list', 'f': 'sse'}, buffered=True) as r:
+                    self.assertEqual(r.status_code, 200)
+                    self.assertEqual(r.headers['Content-Type'], 'text/event-stream; charset=utf-8')
+                    self.assertEqual(r.headers['Cache-Control'], 'no-cache')
+                    self.assertIsNotNone(r.headers['Last-Modified'])
+                    self.assertIsNotNone(r.headers['ETag'])
+                    sse = self.parse_sse_objects(r.data.decode('UTF-8'))
+                    self.assertTrue(('message', {
+                        'name': 'index.html',
+                        'type': 'file',
+                        'size': 19,
+                        'last_modified': zip_tuple_timestamp((1987, 1, 2, 0, 0, 0)),
+                        }) in sse)
+                    self.assertTrue(('message', {
+                        'name': 'subdir',
+                        'type': 'dir',
+                        'size': None,
+                        'last_modified': zip_tuple_timestamp((1987, 1, 2, 1, 0, 0)),
+                        }) in sse)
+                    self.assertTrue(('complete', None) in sse)
 
-                # implicit dir
-                r = c.get('/archive.zip!/implicit_dir/', query_string={'a': 'list', 'f': 'sse'}, buffered=True)
-                self.assertEqual(r.status_code, 200)
-                self.assertEqual(r.headers['Content-Type'], 'text/event-stream; charset=utf-8')
-                self.assertEqual(r.headers['Cache-Control'], 'no-cache')
-                self.assertIsNotNone(r.headers['Last-Modified'])
-                self.assertIsNotNone(r.headers['ETag'])
-                sse = self.parse_sse_objects(r.data.decode('UTF-8'))
-                self.assertTrue(('message', {
-                    'name': 'index.html',
-                    'type': 'file',
-                    'size': 22,
-                    'last_modified': zip_tuple_timestamp((1987, 1, 3, 0, 0, 0)),
-                    }) in sse)
-                self.assertTrue(('message', {
-                    'name': 'subdir',
-                    'type': 'dir',
-                    'size': None,
-                    'last_modified': None,
-                    }) in sse)
-                self.assertTrue(('complete', None) in sse)
+                with get(
+                        'implicit dir (no slash)',
+                        '/archive.zip!/implicit_dir', query_string={'a': 'list', 'f': 'sse'}, buffered=True) as r:
+                    self.assertEqual(r.status_code, 200)
+                    self.assertEqual(r.headers['Content-Type'], 'text/event-stream; charset=utf-8')
+                    self.assertEqual(r.headers['Cache-Control'], 'no-cache')
+                    self.assertIsNotNone(r.headers['Last-Modified'])
+                    self.assertIsNotNone(r.headers['ETag'])
+                    sse = self.parse_sse_objects(r.data.decode('UTF-8'))
+                    self.assertTrue(('message', {
+                        'name': 'index.html',
+                        'type': 'file',
+                        'size': 22,
+                        'last_modified': zip_tuple_timestamp((1987, 1, 3, 0, 0, 0)),
+                        }) in sse)
+                    self.assertTrue(('message', {
+                        'name': 'subdir',
+                        'type': 'dir',
+                        'size': None,
+                        'last_modified': None,
+                        }) in sse)
+                    self.assertTrue(('complete', None) in sse)
+
+                with get(
+                        'implicit dir',
+                        '/archive.zip!/implicit_dir/', query_string={'a': 'list', 'f': 'sse'}, buffered=True) as r:
+                    self.assertEqual(r.status_code, 200)
+                    self.assertEqual(r.headers['Content-Type'], 'text/event-stream; charset=utf-8')
+                    self.assertEqual(r.headers['Cache-Control'], 'no-cache')
+                    self.assertIsNotNone(r.headers['Last-Modified'])
+                    self.assertIsNotNone(r.headers['ETag'])
+                    sse = self.parse_sse_objects(r.data.decode('UTF-8'))
+                    self.assertTrue(('message', {
+                        'name': 'index.html',
+                        'type': 'file',
+                        'size': 22,
+                        'last_modified': zip_tuple_timestamp((1987, 1, 3, 0, 0, 0)),
+                        }) in sse)
+                    self.assertTrue(('message', {
+                        'name': 'subdir',
+                        'type': 'dir',
+                        'size': None,
+                        'last_modified': None,
+                        }) in sse)
+                    self.assertTrue(('complete', None) in sse)
 
                 etag = r.headers['ETag']
                 lm =  r.headers['Last-Modified']
 
-                # 304 for etag
-                r = c.get('/archive.zip!/implicit_dir/', query_string={'a': 'list', 'f': 'sse'}, headers={
-                    'If-None-Match': etag,
-                    })
-                self.assertEqual(r.status_code, 304)
+                with get(
+                        '304 for etag',
+                        '/archive.zip!/implicit_dir/', query_string={'a': 'list', 'f': 'sse'}, headers={
+                        'If-None-Match': etag,
+                        }) as r:
+                    self.assertEqual(r.status_code, 304)
 
-                # 304 for last-modified
-                r = c.get('/archive.zip!/implicit_dir/', query_string={'a': 'list', 'f': 'sse'}, headers={
-                    'If-Modified-Since': lm,
-                    })
-                self.assertEqual(r.status_code, 304)
+                with get(
+                        '304 for last-modified',
+                        '/archive.zip!/implicit_dir/', query_string={'a': 'list', 'f': 'sse'}, headers={
+                        'If-Modified-Since': lm,
+                        }) as r:
+                    self.assertEqual(r.status_code, 304)
         finally:
             try:
                 os.remove(zip_filename)
