@@ -1391,6 +1391,26 @@ class TestList(TestActions):
                     with check(message, path=path, **kwargs):
                         yield c.get(path, **kwargs)
 
+                from collections import namedtuple
+                ZipDateTimeTuple = namedtuple(
+                    'ZipDateTimeTuple', ('year', 'month', 'day', 'hour', 'minute', 'second'))
+
+                class zip_tuple_timestamp(ZipDateTimeTuple):
+                    def __new__(cls, tup):
+                        return super().__new__(cls, *tup)
+
+                    @property
+                    def timestamp(self):
+                        return time.mktime(self + (0, 0, -1))
+
+                    def __repr__(self):
+                        dt = '{:04}-{:02}-{:02} {:02}:{:02}:{:02}'.format(*self)
+                        return '{}({}, {!r})'.format(self.__class__.__name__, self.timestamp, dt)
+
+                    def __eq__(self, other):
+                        if isinstance(other, (int, float)):
+                            return self.timestamp == other
+
                 with get(
                         'explicit dir (no slash)',
                         '/archive.zip!/explicit_dir', query_string={'a': 'list', 'f': 'sse'}, buffered=True) as r:
